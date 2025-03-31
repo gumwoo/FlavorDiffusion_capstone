@@ -1,0 +1,19 @@
+python3 -u src/train.py \
+  --diffusion_type "gaussian" \
+  --do_test \
+  --do_valid_only \
+  --learning_rate 0.0002 \
+  --weight_decay 0.0001 \
+  --lr_scheduler "cosine-decay" \
+  --storage_path "." \
+  --training_split "./output_subgraphs/25/subgraphs_test.json" \
+  --validation_split "./output_subgraphs/25/subgraphs_test.json" \
+  --test_split "./output_subgraphs/25/subgraphs_test.json" \
+  --batch_size 1 \
+  --num_epochs 10 \
+  --inference_schedule "cosine" \
+  --inference_diffusion_steps 50 \
+  --inference_trick "ddim" \
+  --CSP_train \
+  --fp16 \
+  --ckpt_path "./lightning_logs/version_5/checkpoints/last.ckpt"
