@@ -107,16 +107,17 @@ def main(argv, args):
         for row in input_contents:
             if first_flag == True:
                 for name in row:
-                    alcohol_name_list.append(name.replace(' ', ''))       # 문자열 전처리
+                    if name != '':  alcohol_name_list.append(name.replace(' ', ''))       # 문자열 전처리
 
                 first_flag = False                      # 최초 1회 시행 이후 위 if문은 수행하지 않는다.
                 continue
 
             name = row[COMPOUND_NAME].strip().replace(' ', '_').lower()   # 공백을 언더바(_)로 대체, 알파벳 소문자로 변경
-            node_1 = find_from_nodes(name, 'compound')                   # 노드 검색
+            if name != '':
+                node_1 = find_from_nodes(name, 'compound')                   # 노드 검색
 
-            concentration_list = row[4:len(row)]
-            for i in range(0, len(concentration_list)):
+            concentration_list = row[5:len(row)]
+            for i in range(0, len(concentration_list) - 5):
                 if concentration_list[i] != '':
                     name = alcohol_name_list[i]
                     node_2 = find_from_nodes(name, 'ingredient')        # 노드 검색
