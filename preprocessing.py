@@ -7,21 +7,20 @@ import re
 # 0) 전처리(정규화) 함수
 #    - 전부 소문자로
 #    - 공백(여러 개) → 언더바
-#    - (이미 α, β, γ 등이 들어있으면 그대로 둠)
+#    - (그리스 문자는 그대로 두고, 영문 alpha/beta→그리스 변환도 안 함)
 # =====================================================
 def normalize_string(original: str) -> str:
     # 1) 소문자로
     s = original.lower()
-    # 2) 공백(\s+) → 언더바(_)
+    # 2) 공백(\s+) → 언더바
     s = re.sub(r"\s+", "_", s.strip())
     return s
 
 # =====================================================
 # 1) 기존 CSV 불러오기
-#    (nodes_191120.csv, edges_191120.csv)
 # =====================================================
-df_nodes = pd.read_csv("nodes_updated.csv")  
-df_edges = pd.read_csv("edges_updated.csv")
+df_nodes = pd.read_csv("nodes_191120.csv")  # [node_id, name, id, node_type, is_hub, ...]
+df_edges = pd.read_csv("edges_191120.csv")  # [id_1, id_2, score, edge_type]
 
 # -----------------------------------------------------
 # (노드 ID 중 최대값 찾기)
@@ -35,12 +34,6 @@ else:
         current_max_node_id = 0
     else:
         current_max_node_id = int(current_max_node_id)
-
-# -----------------------------------------------------
-# (원본 이름 보관용 'original_name' 컬럼이 없으면 추가)
-# -----------------------------------------------------
-if "original_name" not in df_nodes.columns:
-    df_nodes["original_name"] = np.nan
 
 # =====================================================
 # 2) "향기성분 프로파일" 엑셀 읽기
@@ -74,13 +67,13 @@ print("Columns:", df_profile.columns.tolist())
 print(df_profile.head(3))
 
 # =====================================================
-# 3) 컬럼 식별(화합물/술)
+# 3) 컬럼 식별(화합물, 술)
 # =====================================================
-compound_col = "Compound_name"  
+compound_col = "Compound_name"  # 필요 시 print(df_profile.columns) 결과 확인해서 맞춰 주세요
 beverage_cols = [c for c in df_profile.columns if c.startswith("Concentration2)_")]
 
 # =====================================================
-# 4) node_map: (정규화된 name, is_hub) → node_id
+# 4) node_map: (정규화된 name, is_hub) -> node_id
 # =====================================================
 node_map = {}
 for idx, row in df_nodes.iterrows():
@@ -90,28 +83,26 @@ for idx, row in df_nodes.iterrows():
     node_map[(stored_name, stored_hub)] = n_id
 
 # =====================================================
-# 노드 생성 함수
+# 함수: 노드 생성
+#   - 원본 문자열은 저장하지 않고, 전처리 후 name에만 넣음
 # =====================================================
 def create_node(original_text, node_type, is_hub, ext_id=None):
     global current_max_node_id
 
-    # 1) 원본 그대로
-    orig = original_text.strip()
-    # 2) 전처리(소문자 + 공백→언더바)
-    norm = normalize_string(orig)
+    # 전처리(소문자+공백→언더바)
+    norm = normalize_string(original_text)
 
     current_max_node_id += 1
     new_id = current_max_node_id
 
     df_nodes.loc[len(df_nodes)] = {
         "node_id": new_id,
-        "name": norm,           # 전처리 결과
-        "original_name": orig,  # 원본
+        "name": norm,    # 전처리된 결과만 저장
         "id": ext_id if ext_id else np.nan,
         "node_type": node_type,
         "is_hub": is_hub
     }
-
+    # node_map 갱신
     node_map[(norm, is_hub)] = new_id
     return new_id
 
@@ -126,15 +117,14 @@ for col in beverage_cols:
     else:
         bev_name_raw = col
 
-    original_bev_name = bev_name_raw.strip()
-    norm_bev_name = normalize_string(original_bev_name)
-
+    norm_bev_name = normalize_string(bev_name_raw.strip())
     key = (norm_bev_name, "no_hub")
+
     if key in node_map:
         bev_id = node_map[key]
     else:
         bev_id = create_node(
-            original_text=original_bev_name,
+            original_text=bev_name_raw,
             node_type="ingredient",
             is_hub="no_hub",
             ext_id=None
@@ -174,7 +164,7 @@ for i, row in df_profile.iterrows():
             ext_id=None
         )
 
-    # NaN이 아닌 술 열과 연결
+    # 술 열이 NaN이 아니면 연결
     for col in beverage_cols:
         val = row[col]
         if pd.notna(val):
@@ -182,13 +172,12 @@ for i, row in df_profile.iterrows():
                 _, bev_name_raw = col.split("_", 1)
             else:
                 bev_name_raw = col
-            
-            original_bev_name = bev_name_raw.strip()
-            norm_bev_name = normalize_string(original_bev_name)
+
+            norm_bev_name = normalize_string(bev_name_raw.strip())
 
             ingr_id = beverage_name_to_id.get(norm_bev_name)
             if ingr_id is None:
-                ingr_id = create_node(original_bev_name, "ingredient", "no_hub")
+                ingr_id = create_node(bev_name_raw, "ingredient", "no_hub")
                 beverage_name_to_id[norm_bev_name] = ingr_id
 
             if not edge_exists(ingr_id, comp_id, "ingr-fcomp"):
